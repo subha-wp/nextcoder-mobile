@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "nextcoder courses",
+    "slug": "nextcoder-courses",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/nextcoder-logo.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSUserNotificationUsageDescription": "This app uses notifications to alert you about updates and important events.",
+        "UIBackgroundModes": ["remote-notification"],
+        "NSPhotoLibraryUsageDescription": "This app needs access to the photo library to upload files."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/nextcoder-logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "versionCode": 1,
+      "package": "com.devcodersubha.nextcodercourses",
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "WAKE_LOCK",
+        "RECEIVE_BOOT_COMPLETED",
+        "ACCESS_NOTIFICATION_POLICY",
+        "POST_NOTIFICATIONS",
+        "android.permission.PREVENT_POWER_KEY"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/nextcoder-logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "fa985a9b-9ba5-4729-858b-c1b7f0e232cd"
+      }
+    },
+    "owner": "devcodersubha"
+  }
+}

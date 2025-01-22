@@ -1,0 +1,26 @@
+{
+  "cli": {
+    "version": ">= 10.2.4"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "releaseChannel": "default",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
+    "apk-production": {
+      "releaseChannel": "default",
+      "android": {
+        "buildType": "apk"
+      }
+    }
+  }
+}
