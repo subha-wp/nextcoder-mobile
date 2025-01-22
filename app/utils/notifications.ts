@@ -1,4 +1,5 @@
 //@ts-nocheck
+import messaging from "@react-native-firebase/messaging";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
@@ -14,8 +15,6 @@ Notifications.setNotificationHandler({
 });
 
 export const initializeNotifications = async () => {
-  let token;
-
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
@@ -27,92 +26,133 @@ export const initializeNotifications = async () => {
     });
   }
 
-  // Check if we have permission
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  // Request permission for notifications
+  const authStatus = await messaging().requestPermission();
+  const enabled =
+    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
-  // If we don't have permission, ask for it
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== "granted") {
-    console.log("Failed to get push token for push notification!");
+  if (!enabled) {
+    console.log("Failed to get push notification permission");
     return null;
   }
 
   try {
-    token = await Notifications.getExpoPushTokenAsync({
-      projectId: Constants.expoConfig?.extra?.eas?.projectId,
-    });
+    // Get FCM token
+    const fcmToken = await messaging().getToken();
+    console.log("FCM Token:", fcmToken);
 
-    // Send this token to your server
-    await sendTokenToServer(token.data);
+    // Send token to server
+    const success = await sendTokenToServer(fcmToken);
+    if (success) {
+      console.log("Token successfully registered with server");
+    } else {
+      console.error("Failed to register token with server");
+    }
+
+    // Listen for token refresh
+    messaging().onTokenRefresh(async (newToken) => {
+      console.log("FCM Token refreshed:", newToken);
+      await sendTokenToServer(newToken);
+    });
 
     // Set up notification handlers
     setupNotificationHandlers();
 
-    return token.data;
+    return fcmToken;
   } catch (error) {
-    console.error("Error getting push token:", error);
+    console.error("Error setting up push notifications:", error);
     return null;
   }
 };
 
 const setupNotificationHandlers = () => {
-  // Handle notifications received while app is foregrounded
-  Notifications.addNotificationReceivedListener((notification) => {
-    const { title, body, data, subtitle } = notification.request.content;
-    console.log("Received notification:", { title, subtitle, body, data });
+  // Handle background messages
+  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+    console.log("Background Message:", remoteMessage);
+    await showNotification(
+      remoteMessage.notification.title,
+      remoteMessage.notification.body,
+      remoteMessage.data
+    );
   });
 
-  // Handle notification responses (when user taps notification)
-  Notifications.addNotificationResponseReceivedListener((response) => {
-    const { title, body, data, subtitle } =
-      response.notification.request.content;
-    console.log("Notification response:", { title, subtitle, body, data });
-
-    // Handle notification tap based on data
-    handleNotificationTap(data);
+  // Handle foreground messages
+  messaging().onMessage(async (remoteMessage) => {
+    console.log("Foreground Message:", remoteMessage);
+    await showNotification(
+      remoteMessage.notification.title,
+      remoteMessage.notification.body,
+      remoteMessage.data
+    );
   });
+
+  // Handle notification open
+  messaging().onNotificationOpenedApp(async (remoteMessage) => {
+    console.log("Notification opened app:", remoteMessage);
+    handleNotificationTap(remoteMessage.data);
+  });
+
+  // Check if app was opened from a notification
+  messaging()
+    .getInitialNotification()
+    .then((remoteMessage) => {
+      if (remoteMessage) {
+        console.log("Initial notification:", remoteMessage);
+        handleNotificationTap(remoteMessage.data);
+      }
+    });
 };
 
 const handleNotificationTap = (data: any) => {
-  // Handle different types of notifications based on data
   if (data?.courseId) {
-    // Navigate to course details
-    // You'll need to implement navigation logic here
     console.log("Navigate to course:", data.courseId);
   } else if (data?.streamSessionId) {
-    // Navigate to live stream
     console.log("Navigate to stream:", data.streamSessionId);
   }
-  // Add more handlers as needed
 };
 
 const sendTokenToServer = async (token: string) => {
   try {
+    console.log("Sending token to server:", token);
+
     const response = await fetch(
       "https://www.nextcoder.co.in/api/register-push-token",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           token,
-          // Add any user identification if available
-          // userId: currentUserId // You'll need to implement this
+          platform: Platform.OS,
+          tokenType: "fcm",
+          deviceInfo: {
+            brand: Constants.deviceName,
+            model: Constants.platform?.web ? "web" : Constants.platform,
+            systemVersion: Platform.Version,
+          },
         }),
       }
     );
 
     if (!response.ok) {
-      throw new Error("Failed to register push token");
+      const errorData = await response.text();
+      console.error("Server response error:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+      });
+      return false;
     }
+
+    const data = await response.json();
+    console.log("Server response:", data);
+    return true;
   } catch (error) {
     console.error("Error sending token to server:", error);
+    return false;
   }
 };
 
@@ -134,12 +174,7 @@ export const showNotification = async (
         ios: {
           subtitle: options.subtitle,
           attachments: options.imageUrl
-            ? [
-                {
-                  url: options.imageUrl,
-                  thumbnailClipArea: [0, 0, 1, 1],
-                },
-              ]
+            ? [{ url: options.imageUrl, thumbnailClipArea: [0, 0, 1, 1] }]
             : undefined,
         },
         android: {
