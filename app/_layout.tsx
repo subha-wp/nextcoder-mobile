@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Platform,
   BackHandler,
+  ActivityIndicator,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import Constants from "expo-constants";
@@ -25,6 +26,8 @@ import { getInjectedJavaScript } from "./utils/webViewBridge";
 
 export default function RootLayout() {
   const [isError, setIsError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
   const webViewRef = useRef(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -67,13 +70,47 @@ export default function RootLayout() {
     }
   }, []);
 
-  const handleError = () => {
+  const handleError = (syntheticEvent) => {
+    const { nativeEvent } = syntheticEvent;
     setIsError(true);
+    setErrorMessage(
+      nativeEvent?.description ||
+        "Unable to load the page. Please check your internet connection and try again."
+    );
+    setIsLoading(false);
+  };
+
+  const handleLoadStart = () => {
+    setIsLoading(true);
+    setIsError(false);
+  };
+
+  const handleLoadEnd = () => {
+    setIsLoading(false);
   };
 
   const retryLoading = () => {
     setIsError(false);
+    setIsLoading(true);
+    webViewRef.current?.reload();
   };
+
+  const renderLoading = () => (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#007AFF" />
+      <Text style={styles.loadingText}>Loading content...</Text>
+    </View>
+  );
+
+  const renderError = () => (
+    <View style={styles.errorContainer}>
+      <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
+      <Text style={styles.errorText}>{errorMessage}</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={retryLoading}>
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   const onMessage = (event) => {
     try {
@@ -112,15 +149,7 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <SafeAreaView style={styles.container}>
         {isError ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>
-              No internet connection. Please check your network settings and try
-              again.
-            </Text>
-            <TouchableOpacity style={styles.retryButton} onPress={retryLoading}>
-              <Text style={styles.retryButtonText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
+          renderError()
         ) : (
           <WebView
             ref={webViewRef}
@@ -131,8 +160,19 @@ export default function RootLayout() {
             startInLoadingState={true}
             scalesPageToFit={true}
             onError={handleError}
+            onLoadStart={handleLoadStart}
+            onLoadEnd={handleLoadEnd}
+            renderLoading={renderLoading}
             onNavigationStateChange={(navState) => {
               setCanGoBack(navState.canGoBack);
+              if (!navState.loading && navState.title === "") {
+                handleError({
+                  nativeEvent: {
+                    description:
+                      "The requested page could not be loaded. Please try again.",
+                  },
+                });
+              }
             }}
             injectedJavaScript={`
               ${getInjectedJavaScript()}
@@ -142,6 +182,13 @@ export default function RootLayout() {
                 const isFullScreen = !!document.fullscreenElement;
                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'fullscreenChange', isFullScreen }));
               });
+
+              // Add error event listener for failed resource loads
+              window.addEventListener('error', function(e) {
+                if (e.target.tagName === 'IMG' || e.target.tagName === 'SCRIPT') {
+                  console.error('Resource failed to load:', e.target.src);
+                }
+              }, true);
             `}
             onMessage={onMessage}
             allowsBackForwardNavigationGestures={true}
@@ -167,27 +214,49 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-    backgroundColor: "#000", // This helps prevent white flashes during orientation changes
+    backgroundColor: "#fff",
   },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+    backgroundColor: "#fff",
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#333",
   },
   errorText: {
     fontSize: 16,
     textAlign: "center",
     marginBottom: 20,
+    color: "#666",
+    lineHeight: 24,
   },
   retryButton: {
     backgroundColor: "#007AFF",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 5,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    elevation: 2,
   },
   retryButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#666",
   },
 });
