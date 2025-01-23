@@ -10,6 +10,7 @@ import {
   Platform,
   BackHandler,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import Constants from "expo-constants";
@@ -19,7 +20,10 @@ import * as ScreenCapture from "expo-screen-capture";
 import {
   initializeNotifications,
   showNotification,
+  registerForPushNotificationsAsync,
+  requestNotificationPermission,
 } from "./utils/notifications";
+
 import { handleFileUpload, handleFileDownload } from "./utils/fileHandlers";
 import { handlePhoneCall, handleOpenMaps } from "./utils/navigation";
 import { getInjectedJavaScript } from "./utils/webViewBridge";
@@ -34,7 +38,24 @@ export default function RootLayout() {
 
   useEffect(() => {
     const setupApp = async () => {
+      // Initialize notifications
       initializeNotifications();
+
+      // Request notification permissions
+      const hasPermission = await requestNotificationPermission();
+      if (hasPermission) {
+        // Register for push notifications and get token
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          // Inject the token into WebView to send to your backend
+          webViewRef.current?.injectJavaScript(`
+            if (window.registerPushToken) {
+              window.registerPushToken('${token}');
+            }
+          `);
+        }
+      }
+
       await ScreenCapture.preventScreenCaptureAsync();
     };
 
