@@ -23,6 +23,7 @@ export const initializeNotifications = async () => {
       lightColor: "#FF231F7C",
       enableVibrate: true,
       enableLights: true,
+      showBadge: true,
     });
   }
 
@@ -73,7 +74,12 @@ const setupNotificationHandlers = () => {
     await showNotification(
       remoteMessage.notification.title,
       remoteMessage.notification.body,
-      remoteMessage.data
+      remoteMessage.data,
+      {
+        imageUrl:
+          remoteMessage.notification.android?.imageUrl ||
+          remoteMessage.notification.ios?.imageUrl,
+      }
     );
   });
 
@@ -83,7 +89,12 @@ const setupNotificationHandlers = () => {
     await showNotification(
       remoteMessage.notification.title,
       remoteMessage.notification.body,
-      remoteMessage.data
+      remoteMessage.data,
+      {
+        imageUrl:
+          remoteMessage.notification.android?.imageUrl ||
+          remoteMessage.notification.ios?.imageUrl,
+      }
     );
   });
 
@@ -170,18 +181,33 @@ export const showNotification = async (
       title,
       body,
       data,
+      sound: true,
+      badge: 1,
       ...Platform.select({
         ios: {
           subtitle: options.subtitle,
           attachments: options.imageUrl
-            ? [{ url: options.imageUrl, thumbnailClipArea: [0, 0, 1, 1] }]
+            ? [
+                {
+                  identifier: "1",
+                  url: options.imageUrl,
+                  thumbnailClipArea: { x: 0, y: 0, width: 1, height: 1 },
+                },
+              ]
             : undefined,
         },
         android: {
-          icon: "ic_notification",
+          icon: "../assets/images/nextcoder-logo-512.png",
           color: "#FF231F7C",
           priority: Notifications.AndroidNotificationPriority.HIGH,
           vibrate: [0, 250, 250, 250],
+          ...(options.imageUrl && {
+            largeIcon: options.imageUrl,
+            style: {
+              type: Notifications.AndroidNotificationStyle.BIGPICTURE,
+              picture: options.imageUrl,
+            },
+          }),
         },
       }),
     },
