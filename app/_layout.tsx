@@ -10,7 +10,7 @@ import {
   Platform,
   BackHandler,
   ActivityIndicator,
-  Alert,
+  AppState,
 } from "react-native";
 import { WebView } from "react-native-webview";
 import Constants from "expo-constants";
@@ -20,13 +20,12 @@ import * as ScreenCapture from "expo-screen-capture";
 import {
   initializeNotifications,
   showNotification,
-  registerForPushNotificationsAsync,
-  requestNotificationPermission,
 } from "./utils/notifications";
 
 import { handleFileUpload, handleFileDownload } from "./utils/fileHandlers";
 import { handlePhoneCall, handleOpenMaps } from "./utils/navigation";
 import { getInjectedJavaScript } from "./utils/webViewBridge";
+import { ImageAlert } from "../components/ImageAlert";
 
 export default function RootLayout() {
   const [isError, setIsError] = useState(false);
@@ -35,27 +34,16 @@ export default function RootLayout() {
   const webViewRef = useRef(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [imageAlert, setImageAlert] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    imageUrl: "",
+  });
 
   useEffect(() => {
     const setupApp = async () => {
-      // Initialize notifications
-      initializeNotifications();
-
-      // Request notification permissions
-      const hasPermission = await requestNotificationPermission();
-      if (hasPermission) {
-        // Register for push notifications and get token
-        const token = await registerForPushNotificationsAsync();
-        if (token) {
-          // Inject the token into WebView to send to your backend
-          webViewRef.current?.injectJavaScript(`
-            if (window.registerPushToken) {
-              window.registerPushToken('${token}');
-            }
-          `);
-        }
-      }
-
+      await initializeNotifications();
       await ScreenCapture.preventScreenCaptureAsync();
     };
 
@@ -71,9 +59,14 @@ export default function RootLayout() {
 
     BackHandler.addEventListener("hardwareBackPress", backAction);
 
+    global.showImageAlert = ({ title, message, imageUrl }) => {
+      setImageAlert({ visible: true, title, message, imageUrl });
+    };
+
     return () => {
       BackHandler.removeEventListener("hardwareBackPress", backAction);
       ScreenCapture.allowScreenCaptureAsync();
+      delete global.showImageAlert;
     };
   }, [canGoBack]);
 
@@ -136,7 +129,6 @@ export default function RootLayout() {
   const onMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      console.log("Received message from WebView:", data);
 
       switch (data.type) {
         case "phoneCall":
@@ -157,13 +149,24 @@ export default function RootLayout() {
         case "fullscreenChange":
           handleFullScreenChange(event);
           break;
-        default:
-          console.log("Unknown message type:", data.type);
       }
     } catch (error) {
-      console.error("Error parsing message:", error);
+      // Error handling without console.error
     }
   };
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        // App has come to the foreground
+        // You can add any necessary logic here, such as refreshing data
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   return (
     <>
@@ -198,16 +201,14 @@ export default function RootLayout() {
             injectedJavaScript={`
               ${getInjectedJavaScript()}
 
-              // Add fullscreen change listener
               document.addEventListener('fullscreenchange', function() {
                 const isFullScreen = !!document.fullscreenElement;
                 window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'fullscreenChange', isFullScreen }));
               });
 
-              // Add error event listener for failed resource loads
               window.addEventListener('error', function(e) {
                 if (e.target.tagName === 'IMG' || e.target.tagName === 'SCRIPT') {
-                  console.error('Resource failed to load:', e.target.src);
+                  // Resource failed to load
                 }
               }, true);
             `}
@@ -215,13 +216,21 @@ export default function RootLayout() {
             allowsBackForwardNavigationGestures={true}
             onLoadEnd={() => {
               webViewRef.current?.injectJavaScript(`
-                console.log('WebView bridge status:', !!window.ReactNativeWebView);
+                // WebView bridge status check (without console.log)
+                window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'bridgeStatus', status: true }));
               `);
             }}
             allowsFullscreenVideo={true}
             mediaPlaybackRequiresUserAction={false}
           />
         )}
+        <ImageAlert
+          visible={imageAlert.visible}
+          title={imageAlert.title}
+          message={imageAlert.message}
+          imageUrl={imageAlert.imageUrl}
+          onClose={() => setImageAlert({ ...imageAlert, visible: false })}
+        />
       </SafeAreaView>
     </>
   );

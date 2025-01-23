@@ -25,7 +25,8 @@
       "package": "com.devcodersubha.nextcodercourses",
       "googleServicesFile": "./credentials/google-services.json",
       "notification": {
-        "icon": "./assets/images/white-nextcoder-48.png"
+        "icon": "./assets/images/white-nextcoder-48.png",
+        "color": "#5b5b5b"
       },
       "permissions": [
         "VIBRATE",
@@ -42,7 +43,8 @@
       "windowTranslucentStatus": true,
       "windowTranslucentNavigation": true,
       "androidWindowEdgeToEdge": true,
-      "androidWindowLayoutInDisplayCutoutMode": "never"
+      "androidWindowLayoutInDisplayCutoutMode": "never",
+      "useNextNotificationsApi": true
     },
     "web": {
       "bundler": "metro",

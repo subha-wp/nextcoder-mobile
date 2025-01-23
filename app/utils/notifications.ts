@@ -4,7 +4,15 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
-// Configure default notification behavior
+// Declare global function for TypeScript
+declare global {
+  var showImageAlert: (params: {
+    title: string;
+    message: string;
+    imageUrl?: string;
+  }) => void;
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -27,50 +35,37 @@ export const initializeNotifications = async () => {
     });
   }
 
-  // Request permission for notifications
-  const authStatus = await messaging().requestPermission();
-  const enabled =
-    authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-    authStatus === messaging.AuthorizationStatus.PROVISIONAL;
-
-  if (!enabled) {
-    console.log("Failed to get push notification permission");
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  let finalStatus = existingStatus;
+  if (existingStatus !== "granted") {
+    const { status } = await Notifications.requestPermissionsAsync();
+    finalStatus = status;
+  }
+  if (finalStatus !== "granted") {
     return null;
   }
 
   try {
-    // Get FCM token
     const fcmToken = await messaging().getToken();
-    console.log("FCM Token:", fcmToken);
-
-    // Send token to server
     const success = await sendTokenToServer(fcmToken);
-    if (success) {
-      console.log("Token successfully registered with server");
-    } else {
-      console.error("Failed to register token with server");
+    if (!success) {
+      return null;
     }
 
-    // Listen for token refresh
     messaging().onTokenRefresh(async (newToken) => {
-      console.log("FCM Token refreshed:", newToken);
       await sendTokenToServer(newToken);
     });
 
-    // Set up notification handlers
     setupNotificationHandlers();
 
     return fcmToken;
   } catch (error) {
-    console.error("Error setting up push notifications:", error);
     return null;
   }
 };
 
 const setupNotificationHandlers = () => {
-  // Handle background messages
   messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-    console.log("Background Message:", remoteMessage);
     await showNotification(
       remoteMessage.notification.title,
       remoteMessage.notification.body,
@@ -83,50 +78,47 @@ const setupNotificationHandlers = () => {
     );
   });
 
-  // Handle foreground messages
   messaging().onMessage(async (remoteMessage) => {
-    console.log("Foreground Message:", remoteMessage);
-    await showNotification(
-      remoteMessage.notification.title,
-      remoteMessage.notification.body,
-      remoteMessage.data,
-      {
-        imageUrl:
-          remoteMessage.notification.android?.imageUrl ||
-          remoteMessage.notification.ios?.imageUrl,
-      }
-    );
+    handleForegroundNotification(remoteMessage);
   });
 
-  // Handle notification open
   messaging().onNotificationOpenedApp(async (remoteMessage) => {
-    console.log("Notification opened app:", remoteMessage);
     handleNotificationTap(remoteMessage.data);
   });
 
-  // Check if app was opened from a notification
   messaging()
     .getInitialNotification()
     .then((remoteMessage) => {
       if (remoteMessage) {
-        console.log("Initial notification:", remoteMessage);
         handleNotificationTap(remoteMessage.data);
       }
     });
 };
 
+const handleForegroundNotification = (remoteMessage) => {
+  const title = remoteMessage.notification.title;
+  const body = remoteMessage.notification.body;
+  const imageUrl =
+    remoteMessage.notification.android?.imageUrl ||
+    remoteMessage.notification.ios?.imageUrl;
+
+  global.showImageAlert({
+    title,
+    message: body,
+    imageUrl,
+  });
+};
+
 const handleNotificationTap = (data: any) => {
   if (data?.courseId) {
-    console.log("Navigate to course:", data.courseId);
+    // Navigate to course
   } else if (data?.streamSessionId) {
-    console.log("Navigate to stream:", data.streamSessionId);
+    // Navigate to stream
   }
 };
 
 const sendTokenToServer = async (token: string) => {
   try {
-    console.log("Sending token to server:", token);
-
     const response = await fetch(
       "https://www.nextcoder.co.in/api/register-push-token",
       {
@@ -148,21 +140,8 @@ const sendTokenToServer = async (token: string) => {
       }
     );
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Server response error:", {
-        status: response.status,
-        statusText: response.statusText,
-        error: errorData,
-      });
-      return false;
-    }
-
-    const data = await response.json();
-    console.log("Server response:", data);
-    return true;
+    return response.ok;
   } catch (error) {
-    console.error("Error sending token to server:", error);
     return false;
   }
 };
@@ -198,6 +177,7 @@ export const showNotification = async (
         },
         android: {
           icon: "../assets/images/white-nextcoder-48.png",
+          color: "#ff237c",
           priority: Notifications.AndroidNotificationPriority.HIGH,
           vibrate: [0, 250, 250, 250],
           ...(options.imageUrl && {
