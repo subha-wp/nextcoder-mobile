@@ -197,8 +197,7 @@ export const showNotification = async (
             : undefined,
         },
         android: {
-          icon: "../assets/images/nextcoder-logo-512.png",
-          color: "#FF231F7C",
+          icon: "../assets/images/white-nextcoder-48.png",
           priority: Notifications.AndroidNotificationPriority.HIGH,
           vibrate: [0, 250, 250, 250],
           ...(options.imageUrl && {
