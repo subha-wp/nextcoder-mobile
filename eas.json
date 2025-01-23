@@ -6,6 +6,13 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "android": {
+        "gradleCommand": ":app:assembleDebug",
+        "withoutCredentials": true
+      },
+      "ios": {
+        "buildConfiguration": "Debug"
+      },
       "env": {
         "GOOGLE_SERVICES_FILE": "./credentials/google-services.json"
       }
@@ -34,5 +41,8 @@
         "GOOGLE_SERVICES_FILE": "./credentials/google-services.json"
       }
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
